@@ -28,7 +28,7 @@ claude mcp add-skill ComPDFKit/compdf-conversion-cli
 - **Python 3.8+**
 - **ComPDFKitConversion SDK** — installed automatically via:
   ```bash
-  pip install -i https://test.pypi.org/simple/ ComPDFKitConversion
+  pip install ComPDFKitConversion
   ```
 - **AI Model** (~525MB) — auto-downloaded on first run
 

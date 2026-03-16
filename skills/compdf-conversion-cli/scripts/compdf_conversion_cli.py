@@ -137,6 +137,9 @@ DOCUMENT_AI_MODEL_URL = "https://download.compdf.com/skills/model/documentai.mod
 DOCUMENT_AI_MODEL_ENV = "COMPDF_DOCUMENT_AI_MODEL"
 DOCUMENT_AI_MODEL_RETRY_DELAYS = (2, 5, 10)
 
+LICENSE_URL = "https://download.compdf.com/skills/license/license.xml"
+LICENSE_RETRY_DELAYS = (2, 5, 10)
+
 # Trial license usage limit
 TRIAL_KEY_FINGERPRINT = "49a6fbe9b5966c54b43defaa1fc7d5fd418aefd9e3c63c74beb06c22c27c28ee"
 TRIAL_USAGE_LIMIT = 200
@@ -310,9 +313,9 @@ def resolve_ocr_languages(args: argparse.Namespace) -> list:
     return [OCR_LANGUAGES[lang] for lang in args.ocr_language]
 
 
-def download_file(url: str, destination: Path) -> None:
+def download_file(url: str, destination: Path, timeout: int = 120) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url, timeout=120) as response, destination.open("wb") as output:
+    with urllib.request.urlopen(url, timeout=timeout) as response, destination.open("wb") as output:
         while True:
             chunk = response.read(1024 * 1024)
             if not chunk:
@@ -454,10 +457,34 @@ def check_trial_usage_limit(license_key: str) -> None:
         )
 
 
-def verify_license(scripts_dir: Path) -> str:
+def ensure_license_file(scripts_dir: Path) -> Path:
     license_path = scripts_dir / "license.xml"
-    if not license_path.is_file():
-        raise RuntimeError(f"Missing required license.xml: {license_path}")
+    if license_path.is_file() and license_path.stat().st_size > 0:
+        return license_path
+    temp_path = license_path.with_suffix(license_path.suffix + ".part")
+    last_error: Exception | None = None
+    for attempt in range(len(LICENSE_RETRY_DELAYS) + 1):
+        try:
+            print(f"license.xml not found, downloading from {LICENSE_URL}...", file=sys.stderr)
+            if temp_path.exists():
+                temp_path.unlink()
+            download_file(LICENSE_URL, temp_path, timeout=30)
+            if not temp_path.is_file() or temp_path.stat().st_size == 0:
+                raise RuntimeError("Downloaded license.xml is empty")
+            temp_path.replace(license_path)
+            break
+        except Exception as exc:
+            last_error = exc
+            if temp_path.exists():
+                temp_path.unlink()
+            if attempt >= len(LICENSE_RETRY_DELAYS):
+                raise RuntimeError(f"Failed to download license.xml: {exc}") from exc
+            time.sleep(LICENSE_RETRY_DELAYS[attempt])
+    return license_path
+
+
+def verify_license(scripts_dir: Path) -> str:
+    license_path = ensure_license_file(scripts_dir)
     license_key = read_license_key(license_path)
     error = LibraryManager.license_verify(license_key, "", "")
     if error != ErrorCode.SUCCESS:
