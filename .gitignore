@@ -1,0 +1,25 @@
+# AI model (auto-downloaded on first run, ~525MB)
+documentai.model
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Usage tracking
+usage.json
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
